@@ -645,6 +645,7 @@ body{font-family:"Berry","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sa
     <img id="oSign" alt="" src="img/signs/osign-sil.webp" style="position:absolute;left:505px;top:500px;width:75px;height:40px;pointer-events:none">
     <button class="door" id="doorIn" style="left:1385px;top:735px;display:none">🏠 집 안으로</button>
     <button class="door foot" id="doorMid" style="left:682px;top:696px"><b>👣</b>가운데 길로</button>
+    <button class="door foot" id="doorLeft" style="left:735px;top:628px"><b>👣</b>왼쪽 길로</button>
     <button class="door foot" id="doorRight" style="left:1245px;top:745px"><b>👣</b>오른쪽 길로</button>
   </div>
   <div id="world5" style="width:1513px;height:1039px">
@@ -784,7 +785,7 @@ let curRoom='living',moving=false,curWorld=world,tubOpen=false;
 function mainRoom(){return (curRoom==='living'||curRoom==='kitchen')&&!tubOpen}   // 노크·하치와레 방문 연출은 거실/부엌에서만
 const EXIT_L=125,EXIT_R=1300,EXIT_LR=1340,EXIT_BL=350,EXIT_OUT=1400;             // 이 위치까지 걸어가면 방이 바뀜
 // ---- 밖 왼쪽 갈림길: 호감도 100 전에는 치이카와가 못 가게 막아요 (첫 번째는 항상 "더 친해지면 같이 가자!", 그 뒤로는 랜덤) ----
-const EXIT_OUT_L=730,LEFT_NEED=100;
+const EXIT_OUT_L=240,LEFT_NEED=100;   // 밖 왼쪽 돌길을 따라 맨 끝(x 240 이하)까지 걸어가면 숲 오솔길로 들어가요
 // ---- 밖 가운데 길 -> 호숫가 (돌길 위쪽 가운데로 걸어가면 들어가고, 호숫가 아래로 내려오면 돌아와요) ----
 const MID_Y=815,MID_X0=770,MID_X1=960,LAKE_BACK_Y=1026;
 // 빠르게 걸어가서 들어가는 곳들: 발자국 버튼을 한 번 누르거나, 그쪽 길을 두 번 터치하면 돼요
@@ -817,7 +818,16 @@ function leftBlock(){
   let k=0;
   if(S.leftSaid){do{k=Math.random()*LEFT_LINES.length|0}while(k===leftLast&&LEFT_LINES.length>1)}
   leftLast=k;S.leftSaid=true;save();
-  goTo(880,P.y);say(LEFT_LINES[k],2600)
+  if(P.x<690)goTo(600,790);else goTo(880,P.y);say(LEFT_LINES[k],2600)
+}
+const H_LEFT_LINES=['앗, 저쪽은 아직 못 가겠어~ 더 친해지면 같이 가자!','음~ 저쪽은 조금 더 친해지고 나서 가볼래!','아직은 비밀이야~! 나중에 같이 가보자!','저쪽 길은 처음이라 좀 떨려… 조금만 더 친해지면!'];
+let hLeftCd=0,hLeftLast=-1;
+function hLeftBlock(){   // 하치와레를 움직이는 중에 왼쪽 길 끝에 닿았는데 하치와레 호감도가 100 전일 때
+  const now=Date.now();if(now<hLeftCd)return;hLeftCd=now+3500;
+  let k;do{k=Math.random()*H_LEFT_LINES.length|0}while(k===hLeftLast&&H_LEFT_LINES.length>1);
+  hLeftLast=k;
+  HA.T=HA.x<690?{x:600,y:790}:{x:880,y:HA.y};hRun=false;
+  hSay(H_LEFT_LINES[k],2600)
 }
 const ROOMS={
   living:{w:1536,h:1024,el:world,charW:200,hor:416,ref:880,floor:{x0:110,x1:1390,y0:750,y1:880},wander:[300,1380]},
@@ -843,6 +853,11 @@ const WANDER_MIN=8000,WANDER_MAX=15000;      // 혼자 돌아다니는 간격(ms
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 // 오른쪽 아래 테이블 앞쪽은 막아둠
 function clampPt(x,y){
+  if(curRoom==='outside'&&x<690&&y<FLOOR.y0){   // 밖 왼쪽 돌길: 가운데 길에서 왼쪽 위로 이어지는 길을 따라 걸어갈 수 있어요 (꽃밭·울타리는 막아둠)
+    const L=[[500,100,190],[560,150,255],[600,205,305],[650,230,365],[700,265,410],[740,310,520],[790,440,690],[810,470,690]];
+    y=clamp(y,L[0][0],FLOOR.y0);let a=L[0],b=L[L.length-1];for(let i=1;i<L.length;i++)if(y<=L[i][0]){a=L[i-1];b=L[i];break}
+    const u=clamp((y-a[0])/(b[0]-a[0]),0,1);return{x:clamp(x,a[1]+(b[1]-a[1])*u,a[2]+(b[2]-a[2])*u),y}
+  }
   x=clamp(x,FLOOR.x0,FLOOR.x1);
   if(curRoom==='lake'){y=clamp(y,FLOOR.y0,FLOOR.y1);const t=(y-FLOOR.y0)/260;return{x:clamp(x,675-50*t,875+240*t),y}}   // 돌길은 위로 갈수록 좁아져요
   if(curRoom==='cove'){y=clamp(y,FLOOR.y0,FLOOR.y1);const t=(y-830)/205;return{x:clamp(x,960-440*t,1130+210*t),y}}   // 돌계단 길은 위로 갈수록 좁아져요
@@ -1041,8 +1056,8 @@ function loop(ts){
     else if(curRoom==='wend'&&fy<=FLOOR.y0+4){arrivedSay=false;switchRoom('hill',850,1020,1)}   // 숲 끝 오른쪽 길 끝까지 가면 언덕 위 둥근 문 집
     else if(curRoom==='wood'&&fy<=FLOOR.y0+4){arrivedSay=false;switchRoom('wend',820,1020,1)}   // 오솔길 끝까지 가면 갈림길 표지판이 있는 숲 끝
     else if(curRoom==='cove'&&fy<=FLOOR.y0+4){arrivedSay=false;switchRoom('cend',720,1020,1)}   // 돌계단 길 끝까지 가면 낚시터   // 호숫가 돌길 끝까지 가면 돌담집 정원
-    else if(curRoom==='outside'&&!ctrlH()&&fx<=EXIT_OUT_L&&Math.round(S.love)<LEFT_NEED)leftBlock();
-    else if(curRoom==='outside'&&!ctrlH()&&fx<=EXIT_OUT_L){arrivedSay=false;switchRoom('wood',820,1025,1)}   // 호감도 100 이상이면 맨 왼쪽 길로 들어가요
+    else if(curRoom==='outside'&&fx<=EXIT_OUT_L&&Math.round(ctrlH()?S.hLove:S.love)<LEFT_NEED){if(ctrlH())hLeftBlock();else leftBlock()}   // 치이카와는 치이카와 호감도, 하치와레는 하치와레 호감도로 따져요
+    else if(curRoom==='outside'&&fx<=EXIT_OUT_L){arrivedSay=false;switchRoom('wood',820,1025,1)}   // 호감도 100 이상이면 맨 왼쪽 길로 들어가요 (치이카와·하치와레 모두)
   }
   const c=camTarget(),f=1-Math.exp(-dt*3);
   camX+=(c.x-camX)*f;camY+=(c.y-camY)*f;
@@ -1807,7 +1822,12 @@ $('#homeBtn').addEventListener('click',()=>{   // 🏠 집 바로가기: 어느 
   else switchRoom('kitchen',330,885,1);                   // 나머지는 현관(주방)으로
 });
 $('#doorIn').addEventListener('click',()=>{if(!sleeping&&!moving&&!hEvt&&curRoom==='outside'){arrivedSay=false;switchRoom('kitchen',330,885,1)}});
-$('#doorMid').addEventListener('click',()=>goNow('lake'));   // 걸어가지 않고 바로 넘어가요
+$('#doorMid').addEventListener('click',()=>goNow('lake'));
+$('#doorLeft').addEventListener('click',()=>{   // 왼쪽 길: 움직이는 캐릭터(치이카와/하치와레)의 호감도가 100 전에는 막히고, 100 이상이면 바로 숲 오솔길로 넘어가요
+  if(sleeping||moving||hEvt||curRoom!=='outside')return;
+  if(Math.round(ctrlH()?S.hLove:S.love)<LEFT_NEED){if(ctrlH())hLeftBlock();else leftBlock();return}
+  midGo=null;arrivedSay=false;switchRoom('wood',820,1025,1)
+});   // 걸어가지 않고 바로 넘어가요
 $('#doorYard').addEventListener('click',()=>goDest('yard'));   // 발자국 버튼: 한 번 누르면 가운데 길까지 빠르게 걸어가서 들어가요
 $('#lakeBack').addEventListener('click',()=>{if(sleeping||moving||hEvt)return;arrivedSay=false;if(curRoom==='lake')switchRoom('outside',850,860,-1);else if(curRoom==='garden')switchRoom('lake',775,805,-1);else if(curRoom==='yard')switchRoom('living',1100,800,-1);else if(curRoom==='cove')switchRoom('outside',1250,850,-1);else if(curRoom==='cend')switchRoom('cove',1040,860,-1);else if(curRoom==='wood')switchRoom('outside',810,880,-1);else if(curRoom==='wend')switchRoom('wood',580,670,-1);else if(curRoom==='hill')switchRoom('wend',1190,665,-1);else if(curRoom==='fish')switchRoom('cend',915,695,-1)});
 $('#doorGarden').addEventListener('click',()=>goDest('garden'));
